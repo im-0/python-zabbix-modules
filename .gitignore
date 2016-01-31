@@ -5,3 +5,6 @@
 /*.creator.user
 *.pyc
 __pycache__
+/build
+*~
+/.idea
