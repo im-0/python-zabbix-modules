@@ -1,0 +1,7 @@
+/*.config
+/*.creator
+/*.files
+/*.includes
+/*.creator.user
+*.pyc
+__pycache__
