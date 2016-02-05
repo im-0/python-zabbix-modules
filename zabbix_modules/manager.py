@@ -151,16 +151,34 @@ def _create_dirs(module_type, conf):
 def _find_enabled_modules(module_type):
     conf, _ = configuration.load(module_type)
     _create_dirs(module_type, conf)
-    return [(module_name, modules.get_sock_path(conf, module_type, module_name))
+    return [(
+                module_name,
+                modules.get_sock_path(conf, module_type, module_name),
+                modules.get_conf_path(conf, module_name),
+            )
             for module_name in modules.find_enabled(conf)]
+
+
+def _get_module_runas(module_type, module_conf_path):
+    with open(module_conf_path) as conf_file:
+        module_conf = yaml.safe_load(conf_file) or {}
+    module_manager_conf = module_conf.get('manager', {})
+    module_runas = module_manager_conf.get('runas', {})
+    _normalize_credentials(module_type, module_runas)
+    return module_runas
 
 
 def _find_all_enabled_modules():
     enabled_modules = []
     for module_type in _MODULE_TYPES:
         enabled_modules.extend(
-                [(module_type, module_name, module_socket_path)
-                 for module_name, module_socket_path
+                [(
+                     module_type,
+                     module_name,
+                     module_socket_path,
+                     _get_module_runas(module_type, module_conf_path),
+                 )
+                 for module_name, module_socket_path, module_conf_path
                  in _find_enabled_modules(module_type)])
 
     return enabled_modules
@@ -168,7 +186,7 @@ def _find_all_enabled_modules():
 
 class _ModuleProcess(trollius.SubprocessProtocol):
     def __init__(self, loop, module_type, module_name, module_interpreter,
-                 module_socket_path):
+                 module_socket_path, module_runas):
         super(_ModuleProcess, self).__init__()
 
         self._loop = weakref.ref(loop)
@@ -176,6 +194,7 @@ class _ModuleProcess(trollius.SubprocessProtocol):
         self._module_name = module_name
         self._module_interpreter = module_interpreter
         self._module_socket_path = module_socket_path
+        self._module_runas = module_runas
 
     def process_exited(self):
         _log.error('Plugin "%s/%s" (%s) exited, restarting...',
@@ -187,13 +206,27 @@ class _ModuleProcess(trollius.SubprocessProtocol):
                        self._module_type,
                        self._module_name,
                        self._module_interpreter,
-                       self._module_socket_path)
+                       self._module_socket_path,
+                       self._module_runas)
+
+
+def _runas(user_id, group_id):
+    if group_id != -1:
+        os.setgid(group_id)
+    if user_id != -1:
+        os.setuid(user_id)
 
 
 def _spawn_process(loop, module_type, module_name, module_interpreter,
-                   module_socket_path):
-    _log.info('Starting module "%s/%s" (%s)',
-              module_type, module_name, module_interpreter)
+                   module_socket_path, module_runas):
+    user_id = module_runas.get('user_id', -1)
+    group_id = module_runas.get('group_id', -1)
+
+    if ((user_id != -1) or (group_id != -1)) and (os.getuid() != 0):
+        raise RuntimeError('"runas" only available for root')
+
+    _log.info('Starting module "%s/%s" (%s) as %d:%d',
+              module_type, module_name, module_interpreter, user_id, group_id)
 
     if os.path.exists(module_socket_path):
         os.unlink(module_socket_path)
@@ -202,11 +235,12 @@ def _spawn_process(loop, module_type, module_name, module_interpreter,
             functools.partial(
                     _ModuleProcess,
                     loop, module_type, module_name, module_interpreter,
-                    module_socket_path),
+                    module_socket_path, module_runas),
             os.path.join(_conf['python_interpreters_dir'], module_interpreter),
             '-m', _MODULES_LOADER,
             _NAMESPACE, module_type, module_name,
-            stdin=None, stdout=None, stderr=None)
+            stdin=None, stdout=None, stderr=None,
+            preexec_fn=functools.partial(_runas, user_id, group_id))
     if loop.is_running():
         loop.create_task(process)
     else:
@@ -217,13 +251,15 @@ def _main():
     module_interpreters = _find_module_interpreters()
 
     enabled_modules = []
-    for mod_type, mod_name, mod_socket_path in _find_all_enabled_modules():
+    for mod_type, mod_name, mod_socket_path, mod_runas in \
+            _find_all_enabled_modules():
         module_interpreter = module_interpreters.get(mod_name)
         if module_interpreter is None:
             raise RuntimeError('Unable to find right interpreter for module '
                                '"%s"' % mod_name)
         enabled_modules.append(
-                (mod_type, mod_name, module_interpreter, mod_socket_path))
+                (mod_type, mod_name, module_interpreter, mod_socket_path,
+                 mod_runas))
 
     _log.info('%u enabled module instances found', len(enabled_modules))
 
