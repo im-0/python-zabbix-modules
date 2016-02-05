@@ -2,10 +2,12 @@
 
 from __future__ import absolute_import
 
+import grp
 import functools
 import json
 import os
 import os.path
+import pwd
 import subprocess
 import sys
 import time
@@ -27,6 +29,7 @@ _DEFAULT_CONF = {
     'python_interpreters_dir': os.path.join('/', 'etc',
                                             'python_zabbix_modules',
                                             'interpreters'),
+    'credentials': {},
 }
 
 _CONF_FILE_PATHS = (
@@ -100,18 +103,54 @@ def _find_module_interpreters():
     return module_interpreters
 
 
-def _create_dirs(conf):
-    if os.path.exists(conf['modules_sock_dir']):
-        # Ensure right permissions on already existing directory.
-        os.chmod(conf['modules_sock_dir'], 0o770)
+def _get_credentials(module_type, credentials_name):
+    credentials = _conf['credentials'].get(module_type, {}).get(
+            credentials_name)
+    if credentials is None:
+        raise RuntimeError(
+                'Undefined credentials "%s" for module type "%s"' % (
+                    credentials_name, module_type))
+    return credentials
+
+
+def _normalize_credentials(module_type, credentials):
+    credentials_name = credentials.get('credentials')
+    if credentials_name is not None:
+        credentials.update(_get_credentials(module_type, credentials_name))
+
+    if 'user' in credentials:
+        credentials['user_id'] = pwd.getpwnam(credentials['user']).pw_uid
+    if 'group' in credentials:
+        credentials['group_id'] = grp.getgrnam(credentials['group']).gr_gid
+
+
+def _create_dirs(module_type, conf):
+    _normalize_credentials(module_type, conf['modules_sock_dir_access'])
+    user_id = conf['modules_sock_dir_access'].get('user_id', -1)
+    group_id = conf['modules_sock_dir_access'].get('group_id', -1)
+    mode = conf['modules_sock_dir_access'].get('mode')
+
+    sock_dir = conf['modules_sock_dir']
+
+    if mode is None:
+        _log.info('Checking socket directory "%s" (%d:%d)',
+             sock_dir, user_id, group_id)
     else:
-        os.mkdir(conf['modules_sock_dir'], 0o770)
-    # TODO: Change owner of this directory depending on configuration.
+        _log.info('Checking socket directory "%s" (%d:%d, 0o%o)',
+             sock_dir, user_id, group_id, mode)
+
+    if not os.path.exists(sock_dir):
+        os.mkdir(sock_dir, mode or 0o700)
+
+    # Ensure right permissions on already existing directory.
+    if mode is not None:
+        os.chmod(sock_dir, mode)
+    os.chown(sock_dir, user_id, group_id)
 
 
 def _find_enabled_modules(module_type):
     conf, _ = configuration.load(module_type)
-    _create_dirs(conf)
+    _create_dirs(module_type, conf)
     return [(module_name, modules.get_sock_path(conf, module_type, module_name))
             for module_name in modules.find_enabled(conf)]
 
