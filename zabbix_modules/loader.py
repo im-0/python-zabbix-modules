@@ -12,6 +12,8 @@ import stevedore
 
 import trollius
 
+import setproctitle
+
 import zabbix_modules.configuration as configuration
 import zabbix_modules.logging as logging
 import zabbix_modules.modules as modules
@@ -58,6 +60,9 @@ def _get_default_loader_conf(module_name):
 
 
 def _main(namespace, module_type, module_name, module_conf):
+    setproctitle.setproctitle(
+            'python_zabbix_modules: Module %s/%s' % (module_type, module_name))
+
     _log.info('Loading module "%s"...', module_name)
 
     manager = stevedore.DriverManager(
