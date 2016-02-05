@@ -23,6 +23,7 @@ def _get_default(module_type):
                 'zabbix_%s.enabled.d' % module_type),
         'modules_sock_dir': os.path.join(
                 '/', 'var', 'run', 'python_zabbix_modules.%s' % module_type),
+        'modules_sock_dir_access': {},
     }
 
 
