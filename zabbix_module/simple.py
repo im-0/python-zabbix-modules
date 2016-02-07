@@ -95,16 +95,21 @@ def item(name=None, arg_converters=None, test_params=None):
 class Simple(zabbix_module.base.ModuleBase):
     items_prefix = ''
 
+    def _add_item(self, item_name, fn):
+        if item_name in self._supported_items:
+            raise RuntimeError('Duplicate item: "%s"' % item_name)
+        self._supported_items[item_name] = fn
+
     def _add_supported_items(self):
         for self_member_name in dir(self):
             self_member = getattr(self, self_member_name)
             if hasattr(self_member, 'item_name'):
-                item_name = self.items_prefix + self_member.item_name
+                self._add_item(self.items_prefix + self_member.item_name,
+                               self_member)
 
-                if item_name in self._supported_items:
-                    raise RuntimeError('Duplicate item: "%s"' % item_name)
-
-                self._supported_items[item_name] = self_member
+    def add_submodule(self, submodule):
+        for item_name, fn in six.iteritems(submodule._supported_items):
+            self._add_item(self.items_prefix + item_name, fn)
 
     def __init__(self, *args, **kwargs):
         super(Simple, self).__init__(*args, **kwargs)
