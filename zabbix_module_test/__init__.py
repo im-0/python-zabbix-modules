@@ -1,37 +1,35 @@
 from __future__ import absolute_import
 
-import zabbix_module.base as base
+import zabbix_module.simple as simple
+import zabbix_module.types as types
 
 
-class Test(base.ModuleBase):
-    def remote_item_list(self):
-        return ({'key': 'pytest.ui64'},
-                {'key': 'pytest.dbl'},
-                {'key': 'pytest.str'},
-                {'key': 'pytest.text'},
-                {'key': 'pytest.msg'},
-                {'key': 'pytest.fail'},
-                {
-                    'key': 'pytest.params',
-                    'flags': ('haveparams', ),
-                    'test_param': 'test_param',
-                })
+class Test(simple.Simple):
+    items_prefix = 'pytest.'
 
-    def remote_get_value(self, key, *params):
-        if key == 'pytest.ui64':
-            return {'ui64': 42}
-        elif key == 'pytest.dbl':
-            return {'dbl': 3.14}
-        elif key == 'pytest.str':
-            return {'str': 'test string'}
-        elif key == 'pytest.text':
-            return {'text': 'test text'}
-        elif key == 'pytest.msg':
-            return {'msg': 'test message'}
-        elif key == 'pytest.fail':
-            return {'msg': 'test error message', 'result': False}
-        elif key == 'pytest.params':
-            if params:
-                return {'text': 'Parameters: "' + '", "'.join(params) + '"'}
-            else:
-                return {'text': 'No parameters'}
+    @simple.item()
+    def get_ui64(self):
+        return 42
+
+    @simple.item()
+    def get_dbl(self):
+        return 1.45
+
+    @simple.item()
+    def get_str(self):
+        return 'test string'
+
+    @simple.item()
+    def get_text(self):
+        return types.Text('test string')
+
+    @simple.item()
+    def get_fail(self):
+        return types.NotSupported('test error message')
+
+    @simple.item()
+    def get_params(self, *args):
+        if args:
+            return 'Parameters: "' + '", "'.join(args) + '"'
+        else:
+            return 'No parameters'
