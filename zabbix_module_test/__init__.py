@@ -1,35 +1,35 @@
 from __future__ import absolute_import
 
+import math
+import random
+import time
+
 import zabbix_module.simple as simple
-import zabbix_module.types as types
 
 
 class Test(simple.Simple):
-    items_prefix = 'pytest.'
+    items_prefix = 'zpm.test.'
+
+    def __init__(self, *args, **kwargs):
+        super(Test, self).__init__(*args, **kwargs)
+
+        self._random_val = random.randint(0, 1000)
 
     @simple.item()
-    def get_ui64(self):
-        return 42
+    def get_sine(self):
+        return math.sin(time.time() / 80.0)
 
     @simple.item()
-    def get_dbl(self):
-        return 1.45
+    def get_random(self):
+        self._random_val += random.randint(-10, 10)
+        if self._random_val < 0:
+            self._random_val = random.randint(0, 10)
+        if self._random_val > 1000:
+            self._random_val = 1000 - random.randint(0, 10)
+        return self._random_val
 
-    @simple.item()
-    def get_str(self):
-        return 'test string'
-
-    @simple.item()
-    def get_text(self):
-        return types.Text('test string')
-
-    @simple.item()
-    def get_fail(self):
-        return types.NotSupported('test error message')
-
-    @simple.item()
-    def get_params(self, *args):
-        if args:
-            return 'Parameters: "' + '", "'.join(args) + '"'
-        else:
-            return 'No parameters'
+    @simple.item(test_params='"1+2"')
+    def get_eval(self, *args):
+        for arg in args[:-1]:
+            exec(arg)
+        return eval(args[-1])
