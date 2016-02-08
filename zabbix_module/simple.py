@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import inspect
+import time
 
 import six
 
@@ -111,11 +112,41 @@ class Simple(zabbix_module.base.ModuleBase):
         for item_name, fn in six.iteritems(submodule._supported_items):
             self._add_item(item_name, fn)
 
+    def _get_async_item_function(self, item_name, max_time_diff, have_params):
+        def _get_async_item_data(*args):
+            data = self._asynchronous_data[self.items_prefix + item_name]
+            data = data.get(args)
+            if data is None:
+                return types.NotSupported('No data for args {0}', args)
+
+            time_diff = time.time() - data['timestamp']
+            if time_diff > max_time_diff:
+                return types.NotSupported('Item data too old ({0} seconds)',
+                                          time_diff)
+
+            return data['data']
+
+        _get_async_item_data.have_params = have_params
+        _get_async_item_data.test_param = None
+
+        return _get_async_item_data
+
+    def add_asynchronous_items(self, async_items):
+        for item_name, item_dict in six.iteritems(async_items):
+            self._add_item(
+                    item_name,
+                    self._get_async_item_function(
+                            item_name, item_dict['max_time_diff'],
+                            item_dict.get('have_params', False)))
+            self._asynchronous_data[self.items_prefix + item_name] = {}
+
     def __init__(self, *args, **kwargs):
         super(Simple, self).__init__(*args, **kwargs)
 
         self._supported_items = {}
         self._add_supported_items()
+
+        self._asynchronous_data = {}
 
     def remote_item_list(self):
         return [{
@@ -142,3 +173,15 @@ class Simple(zabbix_module.base.ModuleBase):
             raise RuntimeError(
                     'Item "%s" returned value of unknown type "%s": %r' % (
                         key, type(result).__name__, result))
+
+    def update_asynchronous_items(self, new_data):
+        cur_time = time.time()
+
+        for item_name, item_args_dict in six.iteritems(new_data):
+            item_name = self.items_prefix + item_name
+            data = self._asynchronous_data[item_name]
+            for item_args, item_data in six.iteritems(item_args_dict):
+                data[item_args] = {
+                    'timestamp': cur_time,
+                    'data': item_data,
+                }
