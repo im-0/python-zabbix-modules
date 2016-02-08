@@ -136,6 +136,8 @@ class Simple(zabbix_module.base.ModuleBase):
             return {'text': result.get_string()}
         elif isinstance(result, types.NotSupported):
             return {'msg': result.get_string(), 'result': False}
+        elif isinstance(result, types.Discovery):
+            return {'str': result.get_string()}
         else:
             raise RuntimeError(
                     'Item "%s" returned value of unknown type "%s": %r' % (
