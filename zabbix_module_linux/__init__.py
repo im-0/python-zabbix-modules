@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+import os
 import os.path
 
 import zabbix_module.simple as simple
@@ -44,6 +45,93 @@ class _KSM(simple.Simple):
         return _read_file('/sys/kernel/mm/ksm/full_scans', int)
 
 
+def _get_field(field_n, conv=None):
+    def _really_get_field(str_value):
+        field_values = str_value.split()
+        if (not str_value) or (len(field_values) <= field_n):
+            return types.NotSupported(
+                    'String "{0}" does not contain field #{1}',
+                    str_value, field_n)
+
+        field_value = field_values[field_n]
+
+        if conv is None:
+            return field_value
+        else:
+            return conv(field_value)
+
+    return _really_get_field
+
+
+class _Block(simple.Simple):
+    """
+    $KERNEL_SRC/Documentation/block/stat.txt
+    """
+
+    items_prefix = 'block.'
+
+    @simple.item()
+    def get_discovery(self):
+        return types.Discovery({
+            'ZPM_LINUX_BLOCK_DEV': block_dev_name,
+        } for block_dev_name in os.listdir('/sys/class/block'))
+
+    @simple.item(test_params='sda')
+    def get_read_ios(self, block_dev_name):
+        return _read_file('/sys/class/block/%s/stat' % block_dev_name,
+                          _get_field(0, int))
+
+    @simple.item(test_params='sda')
+    def get_read_merges(self, block_dev_name):
+        return _read_file('/sys/class/block/%s/stat' % block_dev_name,
+                          _get_field(1, int))
+
+    @simple.item(test_params='sda')
+    def get_read_sectors(self, block_dev_name):
+        return _read_file('/sys/class/block/%s/stat' % block_dev_name,
+                          _get_field(2, int))
+
+    @simple.item(test_params='sda')
+    def get_read_ticks(self, block_dev_name):
+        return _read_file('/sys/class/block/%s/stat' % block_dev_name,
+                          _get_field(3, int))
+
+    @simple.item(test_params='sda')
+    def get_write_ios(self, block_dev_name):
+        return _read_file('/sys/class/block/%s/stat' % block_dev_name,
+                          _get_field(4, int))
+
+    @simple.item(test_params='sda')
+    def get_write_merges(self, block_dev_name):
+        return _read_file('/sys/class/block/%s/stat' % block_dev_name,
+                          _get_field(5, int))
+
+    @simple.item(test_params='sda')
+    def get_write_sectors(self, block_dev_name):
+        return _read_file('/sys/class/block/%s/stat' % block_dev_name,
+                          _get_field(6, int))
+
+    @simple.item(test_params='sda')
+    def get_write_ticks(self, block_dev_name):
+        return _read_file('/sys/class/block/%s/stat' % block_dev_name,
+                          _get_field(7, int))
+
+    @simple.item(test_params='sda')
+    def get_in_flight(self, block_dev_name):
+        return _read_file('/sys/class/block/%s/stat' % block_dev_name,
+                          _get_field(8, int))
+
+    @simple.item(test_params='sda')
+    def get_io_ticks(self, block_dev_name):
+        return _read_file('/sys/class/block/%s/stat' % block_dev_name,
+                          _get_field(9, int))
+
+    @simple.item(test_params='sda')
+    def get_time_in_queue(self, block_dev_name):
+        return _read_file('/sys/class/block/%s/stat' % block_dev_name,
+                          _get_field(10, int))
+
+
 class Main(simple.Simple):
     items_prefix = 'zpm.linux.'
 
@@ -51,3 +139,4 @@ class Main(simple.Simple):
         super(Main, self).__init__(*args, **kwargs)
 
         self.add_submodule(_KSM(*args, **kwargs))
+        self.add_submodule(_Block(*args, **kwargs))
