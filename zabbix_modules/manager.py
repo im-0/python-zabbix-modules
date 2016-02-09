@@ -8,6 +8,7 @@ import json
 import os
 import os.path
 import pwd
+import signal
 import subprocess
 import sys
 import time
@@ -247,6 +248,11 @@ def _spawn_process(loop, module_type, module_name, module_interpreter,
         loop.run_until_complete(process)
 
 
+def _stop(sig_num, loop):
+    _log.info('Exiting on signal %d...', sig_num)
+    loop.stop()
+
+
 def _main():
     module_interpreters = _find_module_interpreters()
 
@@ -264,8 +270,16 @@ def _main():
     _log.info('%u enabled module instances found', len(enabled_modules))
 
     loop = trollius.get_event_loop()
+
+    for sig_num in signal.SIGINT, signal.SIGTERM:
+        loop.add_signal_handler(sig_num, lambda: _stop(sig_num, loop))
+
     list(map(lambda module: _spawn_process(loop, *module), enabled_modules))
-    loop.run_forever()
+
+    try:
+        loop.run_forever()
+    finally:
+        loop.close()
 
 
 def _find_conf_file():
@@ -301,7 +315,6 @@ def main():
     except:
         _log.exception('Unhandled exception')
         return os.EX_SOFTWARE
-    # TODO: Handle signals.
     # TODO: Ensure that all subprocesses are killed.
     return os.EX_OK
 
