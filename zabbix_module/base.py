@@ -19,3 +19,6 @@ class ModuleBase(object):
     @abc.abstractmethod
     def remote_get_value(self, key, *params):
         pass
+
+    def on_module_terminate(self):
+        pass
