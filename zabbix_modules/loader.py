@@ -4,6 +4,7 @@ from __future__ import absolute_import
 
 import functools
 import os
+import signal
 import sys
 
 import yaml
@@ -59,6 +60,11 @@ def _get_default_loader_conf(module_name):
     }
 
 
+def _stop(sig_num, loop):
+    _log.info('Exiting on signal %d...', sig_num)
+    loop.stop()
+
+
 def _main(namespace, module_type, module_name, module_conf):
     setproctitle.setproctitle(
             'python_zabbix_modules: Module %s/%s' % (module_type, module_name))
@@ -75,13 +81,21 @@ def _main(namespace, module_type, module_name, module_conf):
     _log.info('Module "%s" loaded successfully, running...', module_name)
 
     loop = trollius.get_event_loop()
+
+    for sig_num in signal.SIGINT, signal.SIGTERM:
+        loop.add_signal_handler(sig_num, lambda: _stop(sig_num, loop))
+
     socket_path = modules.get_sock_path(_conf, module_type, module_name)
     module_coroutine = loop.create_unix_server(
             functools.partial(_ModuleServer, manager.driver), socket_path)
     loop.run_until_complete(module_coroutine)
     # Access to sockets will be restricted on directory level.
     os.chmod(socket_path, 0o666)
-    loop.run_forever()
+
+    try:
+        loop.run_forever()
+    finally:
+        loop.close()
 
 
 def main():
@@ -110,7 +124,6 @@ def main():
     except:
         _log.exception('Unhandled exception')
         return os.EX_SOFTWARE
-    # TODO: Handle signals.
     return os.EX_OK
 
 
