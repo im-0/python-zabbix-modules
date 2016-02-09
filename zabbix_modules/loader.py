@@ -54,7 +54,7 @@ class _ModuleServer(trollius.BaseProtocol):
 
 def _get_default_loader_conf(module_name):
     return {
-        'log_file': os.path.join('/', 'var', 'log', 'python_zabbix_modules',
+        'log_file': os.path.join('/', 'var', 'log', 'python-zabbix-modules',
                                  'module.%s.log' % module_name),
         'log_level': 'info',
     }
@@ -67,7 +67,7 @@ def _stop(sig_num, loop):
 
 def _main(namespace, module_type, module_name, module_conf):
     setproctitle.setproctitle(
-            'python_zabbix_modules: Module %s/%s' % (module_type, module_name))
+            'python-zabbix-modules: Module %s/%s' % (module_type, module_name))
 
     _log.info('Loading module "%s"...', module_name)
 
