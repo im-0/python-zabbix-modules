@@ -80,22 +80,25 @@ def _main(namespace, module_type, module_name, module_conf):
 
     _log.info('Module "%s" loaded successfully, running...', module_name)
 
-    loop = trollius.get_event_loop()
-
-    for sig_num in signal.SIGINT, signal.SIGTERM:
-        loop.add_signal_handler(sig_num, lambda: _stop(sig_num, loop))
-
-    socket_path = modules.get_sock_path(_conf, module_type, module_name)
-    module_coroutine = loop.create_unix_server(
-            functools.partial(_ModuleServer, manager.driver), socket_path)
-    loop.run_until_complete(module_coroutine)
-    # Access to sockets will be restricted on directory level.
-    os.chmod(socket_path, 0o666)
-
     try:
-        loop.run_forever()
+        loop = trollius.get_event_loop()
+
+        for sig_num in signal.SIGINT, signal.SIGTERM:
+            loop.add_signal_handler(sig_num, lambda: _stop(sig_num, loop))
+
+        socket_path = modules.get_sock_path(_conf, module_type, module_name)
+        module_coroutine = loop.create_unix_server(
+                functools.partial(_ModuleServer, manager.driver), socket_path)
+        loop.run_until_complete(module_coroutine)
+        # Access to sockets will be restricted on directory level.
+        os.chmod(socket_path, 0o666)
+
+        try:
+            loop.run_forever()
+        finally:
+            loop.close()
     finally:
-        loop.close()
+        manager.driver.on_module_terminate()
 
 
 def main():
