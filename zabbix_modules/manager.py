@@ -24,20 +24,20 @@ import zabbix_modules.modules as modules
 
 
 _DEFAULT_CONF = {
-    'log_file': os.path.join('/', 'var', 'log', 'python_zabbix_modules',
+    'log_file': os.path.join('/', 'var', 'log', 'python-zabbix-modules',
                              'manager.log'),
     'log_level': 'info',
     'python_interpreters_dir': os.path.join('/', 'etc',
-                                            'python_zabbix_modules',
+                                            'python-zabbix-modules',
                                             'interpreters'),
     'credentials': {},
 }
 
 _CONF_FILE_PATHS = (
     os.environ.get('PYTHON_ZABBIX_MODULES_MANAGER_CONF'),
-    os.path.join('/', 'etc', 'python_zabbix_modules', 'manager.conf'),
+    os.path.join('/', 'etc', 'python-zabbix-modules', 'manager.conf'),
     os.path.join(os.path.expanduser('~'), '.config',
-                 'python_zabbix_modules', 'manager.conf'),
+                 'python-zabbix-modules', 'manager.conf'),
 )
 
 _NAMESPACE = 'zabbix_modules'

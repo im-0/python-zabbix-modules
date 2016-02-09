@@ -15,14 +15,14 @@ MODULE_CONF_EXT = '.conf'
 def _get_default(module_type):
     return {
         'log_file': os.path.join(
-                '/', 'var', 'log', 'python_zabbix_modules',
+                '/', 'var', 'log', 'python-zabbix-modules',
                 'zabbix_%s.log' % module_type),
         'log_level': 'info',
         'modules_conf_dir': os.path.join(
-                '/', 'etc', 'python_zabbix_modules',
+                '/', 'etc', 'python-zabbix-modules',
                 'zabbix_%s.enabled.d' % module_type),
         'modules_sock_dir': os.path.join(
-                '/', 'var', 'run', 'python_zabbix_modules.%s' % module_type),
+                '/', 'var', 'run', 'python-zabbix-modules.%s' % module_type),
         'modules_sock_dir_access': {},
     }
 
@@ -30,10 +30,10 @@ def _get_default(module_type):
 def _get_file_paths(module_type):
     return (
         os.environ.get('PYTHON_ZABBIX_%s_MODULES_CONF' % module_type.upper()),
-        os.path.join('/', 'etc', 'python_zabbix_modules',
+        os.path.join('/', 'etc', 'python-zabbix-modules',
                      'zabbix_%s.conf' % module_type),
         os.path.join(os.path.expanduser('~'), '.config',
-                     'python_zabbix_modules', 'zabbix_%s.conf' % module_type),
+                     'python-zabbix-modules', 'zabbix_%s.conf' % module_type),
     )
 
 
