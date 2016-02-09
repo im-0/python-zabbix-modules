@@ -1,0 +1,8 @@
+/var/log/zabbix-python-modules/*.log {
+        weekly
+        missingok
+        rotate 5
+        compress
+        delaycompress
+        copytruncate
+}
