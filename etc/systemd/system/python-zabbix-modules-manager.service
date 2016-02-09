@@ -1,0 +1,10 @@
+[Unit]
+Description=Python loadable modules for Zabbix - Module manager
+After=syslog.target network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python-zabbix-modules-manager
+
+[Install]
+WantedBy=multi-user.target
