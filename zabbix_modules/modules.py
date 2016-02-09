@@ -11,6 +11,9 @@ _log = logging.getLogger(__name__)
 
 
 def find_enabled(conf):
+    if not os.path.exists(conf['modules_conf_dir']):
+        return
+
     for file_name in os.listdir(conf['modules_conf_dir']):
         if not file_name.endswith(configuration.MODULE_CONF_EXT):
             _log.warning('Ignoring module configuration file with invalid '
