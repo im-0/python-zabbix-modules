@@ -4,7 +4,7 @@ foreach(MODULE_TYPE "agent" "agentd" "server")
                 python_zabbix_modules.c)
     target_include_directories(python-zabbix_${MODULE_TYPE}-modules
             PUBLIC
-                ${CMAKE_SOURCE_DIR}/include/zabbix
+                ${CMAKE_SOURCE_DIR}/include/zabbix/${ZABBIX_VERSION}
                 ${PYTHON_INCLUDE_DIRS})
 
     set_property(TARGET python-zabbix_${MODULE_TYPE}-modules

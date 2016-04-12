@@ -1,17 +1,21 @@
 #!/bin/sh -eu
 
 
+DEFAULT_ZABBIX_VERSION=3.0.0
+
+
 printHelpAndExit()
 {
 cat >&2 << end
 Usage:
     $0 -h
-    $0 [-v] [2] [3]
+    $0 [-v] [-z <zabbix version>] [2] [3]
     $0 -c [-v]
 
 Options:
     -h - Print this help message and exit.
     -v - Verbose.
+    -z - Set version of Zabbix headers to use (default is "${DEFAULT_ZABBIX_VERSION}").
     -c - Clean.
 end
     exit 1
@@ -27,10 +31,12 @@ fail()
 
 opt_verbose=""
 opt_clean=""
-while getopts hvc opt; do
+opt_zabbix="${DEFAULT_ZABBIX_VERSION}"
+while getopts "hvz:c" opt; do
     case "${opt}" in
         "h") printHelpAndExit;;
         "v") opt_verbose="y";;
+        "z") opt_zabbix="${OPTARG}";;
         "c") opt_clean="y";;
         *)   printHelpAndExit;;
     esac
@@ -56,9 +62,16 @@ for version in $versions; do
     mkdir -p "./build/${version}"
     cd "./build/${version}"
     if [ -n "${opt_verbose}" ]; then
-        cmake -DCMAKE_VERBOSE_MAKEFILE=ON -DPYTHON_VERSION=${version} "../.."
+        cmake \
+                -DCMAKE_VERBOSE_MAKEFILE=ON \
+                -DPYTHON_VERSION=${version} \
+                -DZABBIX_VERSION=${opt_zabbix} \
+                "../.."
     else
-        cmake -DPYTHON_VERSION=${version} "../.."
+        cmake \
+                -DPYTHON_VERSION=${version} \
+                -DZABBIX_VERSION=${opt_zabbix} \
+                "../.."
     fi
     make
     cd "../.."
