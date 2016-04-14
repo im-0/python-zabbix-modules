@@ -23,7 +23,12 @@
 #include "module.h"
 
 
+#if NO_SYSLOG == 1
+#include <stdio.h>
+#define log(priority, ...) fprintf(stderr, "SYSLOG [" PROJECT_NAME "] " __VA_ARGS__)
+#else
 #define log(priority, ...) syslog(priority, "[" PROJECT_NAME "] " __VA_ARGS__)
+#endif
 
 
 #if PY_MAJOR_VERSION >= 3

@@ -1,0 +1,301 @@
+#!/bin/sh -xeu
+
+BASE_DIR="$( pwd )/ci-dir"
+LOG_DIR="${BASE_DIR}/logs"
+
+# headers version:source tarball version:source tarball SHA256
+ZABBIX_VERSIONS=""
+ZABBIX_VERSIONS="${ZABBIX_VERSIONS} 2.2.0:2.2.11:9ad7bd71985dc316ee2a614bba2b1dd108d2a930c0a5cc5a8f75eb45a7a7e1ba"
+ZABBIX_VERSIONS="${ZABBIX_VERSIONS} 2.2.0:2.4.7:d2c47b8f5b9b91f18010d54c45de55845d979014a8b3fe4bef64e0b08f8b00da"
+ZABBIX_VERSIONS="${ZABBIX_VERSIONS} 3.0.0:3.0.1:e91a8497bf635b96340988e2d9ca1bb3fac06e657b6596fa903c417a6c6b110b"
+
+ZABBIX_SOURCE_URL="ftp://ftp.heanet.ie/mirrors/download.sourceforge.net/pub/sourceforge/z/za/zabbix/ZABBIX%20Latest%20Stable"
+
+PYTHON_VERSIONS="2 3"
+
+
+# Parameters:
+#   $1 - Zabbix version.
+#   $2 - SHA256 of zabbix source tarball.
+# Output:
+#   stdout - Path to zabbix agentd binary
+compile_zabbix_agentd()
+{
+    local src_dir src_tarball src_url prev_cur_dir bin_path
+
+    src_dir="${BASE_DIR}/zabbix-${1}"
+    src_tarball="${BASE_DIR}/zabbix-${1}.tar.gz"
+    if [ ! -d "${src_dir}" ]; then
+        rm -frv "${src_dir}" "${src_tarball}" >&2
+        src_url="${ZABBIX_SOURCE_URL}/${1}/zabbix-${1}.tar.gz"
+        wget -c -t 3 -T 15 -O "${src_tarball}" "${src_url}" >&2
+        echo "${2} ${src_tarball}" | sha256sum -c >&2
+        tar vxzf "${src_tarball}" -C "${BASE_DIR}" >&2
+    fi
+
+    if [ ! -f "${src_dir}/Makefile" ]; then
+        prev_cur_dir=$( pwd )
+        cd "${src_dir}"
+        ./configure \
+                --disable-server \
+                --disable-proxy \
+                --disable-java \
+                --enable-agent >&2
+        cd "${prev_cur_dir}"
+    fi
+
+    bin_path="${src_dir}/src/zabbix_agent/zabbix_agentd"
+    if [ ! -x "${bin_path}" ]; then
+        prev_cur_dir=$( pwd )
+        cd "${src_dir}"
+        make clean >&2
+        make >&2
+        cd "${prev_cur_dir}"
+    fi
+
+    ldd "${bin_path}" >&2
+    echo "${bin_path}"
+}
+
+
+# Parameters:
+#   $1 - Python version.
+#   $2 - Version of zabbix headers.
+# Output:
+#   stdout - Path to modules for zabbix agentd.
+compile_zabbix_module()
+{
+    local bin_path python_ver
+
+    bin_path="$( pwd )/build/py${1}/zabbix-${2}/src/libpython-zabbix_agentd-modules.so"
+    if [ ! -f "${bin_path}" ]; then
+        if [ \( "${ID}" = "centos" \) -a \( $VERSION_ID -eq 7 \) \
+                -a \( $1 -eq 3 \) ]; then
+            # Workaround for old CMake.
+            python_ver=$( "python${1}" -c "import sys; sys.stdout.write('.'.join(map(str, sys.version_info[:3])))" )
+            ./make -v -z "${2}" -S -P "${python_ver}" "${1}" >&2
+        else
+            ./make -v -z "${2}" -S "${1}" >&2
+        fi
+    fi
+
+    ldd "${bin_path}" >&2
+    echo "${bin_path}"
+}
+
+
+# Parameters:
+#   $1 - Test name.
+#   $2 - Path to zabbix module.
+# Output:
+#   stdout - Path to configuration file.
+generate_zabbix_agentd_conf()
+{
+    local pid_path log_path module_path module conf_path
+
+    pid_path="${BASE_DIR}/zabbix_agentd.pid"
+    log_path="${LOG_DIR}/zabbix_agentd.${1}.log"
+    rm -fv "${pid_path}" "${log_path}" >&2
+    module_path=$( dirname "${2}" )
+    module=$( basename "${2}" )
+    conf_path="${BASE_DIR}/zabbix_agentd.conf"
+    cat >"${conf_path}" <<END_OF_FILE
+PidFile=${pid_path}
+LogFile=${log_path}
+LogFileSize=0
+DebugLevel=4
+Server=127.0.0.1
+ServerActive=127.0.0.1
+Hostname=Test
+LoadModulePath=${module_path}
+LoadModule=${module}
+END_OF_FILE
+    echo "${conf_path}"
+}
+
+
+# Parameters:
+#   $1 - Test name.
+#   $2 - Python version.
+# Output:
+#   stdout - Path to configuration files.
+generate_python_zabbix_modules_configs()
+{
+    local interpreters_dir enabled_dir empty_dir sock_dir
+    local log_path
+    local wrapper_conf_path wrapper_disabled_conf_path
+    local manager_conf_path module_conf_path
+
+    interpreters_dir="${BASE_DIR}/interpreters"
+    enabled_dir="${BASE_DIR}/enabled.d"
+    empty_dir="${BASE_DIR}/empty"
+    sock_dir="${BASE_DIR}/sock"
+    rm -frv "${enabled_dir}" "${empty_dir}" "${sock_dir}" \
+            "${interpreters_dir}" >&2
+    mkdir -pv "${enabled_dir}" "${empty_dir}" "${sock_dir}" \
+            "${interpreters_dir}" >&2
+    ln -sv "$( which "python${2}" )" "${interpreters_dir}/python${2}" >&2
+
+    log_path="${LOG_DIR}/python_zabbix_agentd.${1}.log"
+    rm -fv "${log_path}" >&2
+    wrapper_conf_path="${BASE_DIR}/python_zabbix_agentd.conf"
+    cat >"${wrapper_conf_path}" <<END_OF_FILE
+log_file: ${log_path}
+log_level: debug
+modules_conf_dir: ${enabled_dir}
+modules_sock_dir: ${sock_dir}
+END_OF_FILE
+
+    wrapper_disabled_conf_path="${BASE_DIR}/python_zabbix_disabled.conf"
+    cat >"${wrapper_disabled_conf_path}" <<END_OF_FILE
+log_file: /dev/null
+log_level: debug
+modules_conf_dir: ${empty_dir}
+modules_sock_dir: ${empty_dir}
+END_OF_FILE
+
+    log_path="${LOG_DIR}/manager.${1}.log"
+    rm -fv "${log_path}" >&2
+    manager_conf_path="${BASE_DIR}/manager.conf"
+    cat >"${manager_conf_path}" <<END_OF_FILE
+log_file: ${log_path}
+log_level: debug
+python_interpreters_dir: ${interpreters_dir}
+END_OF_FILE
+
+    log_path="${LOG_DIR}/python_test_module.${1}.log"
+    rm -fv "${log_path}" >&2
+    module_conf_path="${enabled_dir}/test.conf"
+    cat >"${module_conf_path}" <<END_OF_FILE
+loader:
+  log_file: ${log_path}
+  log_level: debug
+END_OF_FILE
+
+    echo "${wrapper_conf_path}" "${wrapper_disabled_conf_path}" \
+            "${manager_conf_path}"
+}
+
+
+# Parameters:
+#   $1 - Python version.
+install_python_zabbix_modules()
+{
+    "python${1}" ./setup.py install
+}
+
+
+# Parameters:
+#   $1 - Path to zabbix agentd.
+#   $2 - Path ot zabbix agentd configuration file.
+#   $3 - Item name.
+#   $4 - Test name.
+# Output:
+#   stdout - Type and value.
+get_test_value()
+{
+    local result log_file
+
+    log_file="${LOG_DIR}/strace-zabbix_agentd.${3}.${4}.log"
+    rm -fv "${log_file}" >&2
+
+    # TODO: Run as daemon and get value using netcat.
+    result=$( timeout --foreground --signal=TERM --kill-after=10 60 \
+            strace -o "${log_file}" -f -s 4096 \
+            "${1}" -c "${2}" -t "${3}" )
+    result=$( echo "${result}" |
+            sed -En "s,^ *[^ ]+ +\[([^|]+\|[^]]+)\].*$,\1,p" )
+    [ -z "${result}" ] && return 1
+    echo "${result}"
+}
+
+
+# Parameters:
+#   $1 - Test name.
+#   $2 - Zabbix version string.
+#   $3 - Python version.
+run_test()
+{
+    local zabbix_hdr_ver zabbix_tgz_ver zabbix_tgz_sha256
+    local agentd module
+    local agentd_conf
+    local py_confs
+    local wrapper_conf disabled_conf manager_conf
+    local pid_file manager_pid
+    local rc
+
+    zabbix_hdr_ver=$( echo "${2}" | cut -d ":" -f 1 )
+    zabbix_tgz_ver=$( echo "${2}" | cut -d ":" -f 2 )
+    zabbix_tgz_sha256=$( echo "${2}" | cut -d ":" -f 3 )
+
+    agentd=$( compile_zabbix_agentd "${zabbix_tgz_ver}" "${zabbix_tgz_sha256}" )
+    module=$( compile_zabbix_module "${3}" "${zabbix_hdr_ver}" )
+
+    agentd_conf=$( generate_zabbix_agentd_conf "${1}" "${module}" )
+    py_confs=$( generate_python_zabbix_modules_configs "${1}" "${3}" )
+    wrapper_conf=$( echo "${py_confs}" | cut -d " " -f 1 )
+    disabled_conf=$( echo "${py_confs}" | cut -d " " -f 2 )
+    manager_conf=$( echo "${py_confs}" | cut -d " " -f 3 )
+
+    export PYTHON_ZABBIX_MODULES_MANAGER_CONF="${manager_conf}"
+    export PYTHON_ZABBIX_AGENTD_MODULES_CONF="${wrapper_conf}"
+    export PYTHON_ZABBIX_AGENT_MODULES_CONF="${disabled_conf}"
+    export PYTHON_ZABBIX_SERVER_MODULES_CONF="${disabled_conf}"
+
+    pid_file="${BASE_DIR}/manager.pid"
+    rm -fv "${pid_file}" >&2
+    setsid sh -c "echo \$\$ >${pid_file} && exec python${3} -m zabbix_modules.manager" &
+    # TODO: Wait for PID file.
+
+    rc=0
+
+    if [ ! "$( get_test_value "${agentd}" "${agentd_conf}" "agent.ping" "${1}" )" = "u|1" ]; then
+        rc=1
+    fi
+
+    # TODO: Test more types of values.
+    if [ ! "$( get_test_value "${agentd}" "${agentd_conf}" "zpm.test.eval[12*34]" "${1}" )" = "u|408" ]; then
+        rc=1
+    fi
+
+    # TODO: Trap on exit.
+    manager_pid=$( cat "${pid_file}" )
+    pkill -TERM -s $manager_pid || true
+    # TODO: Wait for manager termination.
+
+    return $rc
+}
+
+
+mkdir -pv "${BASE_DIR}"
+mkdir -pv "${LOG_DIR}"
+
+if [ -f "/etc/os-release" ]; then
+    . "/etc/os-release"
+else
+    ID='unknown'
+    VERSION_ID=0
+fi
+
+# TODO: Test different python version combinations for manager and modules.
+for python_ver in $PYTHON_VERSIONS; do
+    unset PYTHONPATH
+    set +eu
+    . "./ci-env${python_ver}/bin/activate"
+    set -eu
+    # Force libpython to use modules from virtual env.
+    export PYTHONPATH=$( "python${python_ver}" -c "import sys; sys.stdout.write(':'.join(filter(bool, sys.path)))" )
+
+    install_python_zabbix_modules "${python_ver}"
+
+    "python${python_ver}" -m zabbix_modules.finder zabbix_modules
+
+    for zabbix_ver_str in $ZABBIX_VERSIONS; do
+        zabbix_ver=$( echo "${zabbix_ver_str}" | cut -d ":" -f 2 )
+
+        run_test \
+                "z_${zabbix_ver}_p${python_ver}" \
+                "${zabbix_ver_str}" \
+                "${python_ver}"
+    done
+done

@@ -1,0 +1,29 @@
+#!/bin/sh -xeu
+
+PYTHON_VERSIONS="2 3"
+
+git log --stat --decorate HEAD~..HEAD
+
+for python_ver in $PYTHON_VERSIONS; do
+    if [ "${python_ver}" = "3" ]; then
+        # virtualenv from CentOS 7 repositories is broken for python 3:
+        #     ImportError: No module named '_collections_abc'
+        set +eu
+        . "./ci-env2/bin/activate"
+        set -eu
+        pip --cache-dir "/home/jenkins/.cache/pip" install "virtualenv"
+    fi
+
+    mkdir "./ci-env${python_ver}"
+    virtualenv -p "python${python_ver}" "./ci-env${python_ver}"
+    set +eu
+    . "./ci-env${python_ver}/bin/activate"
+    set -eu
+    env | sort
+
+    pip install --upgrade pip
+    pip --cache-dir "/home/jenkins/.cache/pip" install -r "./ci-requirements.txt"
+    pip list
+done
+
+exec ./ci

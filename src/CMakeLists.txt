@@ -20,6 +20,9 @@ foreach(MODULE_TYPE "agent" "agentd" "server")
     set_property(TARGET python-zabbix_${MODULE_TYPE}-modules
             APPEND_STRING PROPERTY COMPILE_FLAGS
                 \ -DPYTHON_LIB_NAME=\\"${PYTHON_LIBRARIES}\\")
+    set_property(TARGET python-zabbix_${MODULE_TYPE}-modules
+            APPEND_STRING PROPERTY COMPILE_FLAGS
+                \ -DNO_SYSLOG=${NO_SYSLOG})
 
     target_link_libraries(python-zabbix_${MODULE_TYPE}-modules
             LINK_PUBLIC

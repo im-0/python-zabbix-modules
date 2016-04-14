@@ -12,3 +12,5 @@ __pycache__
 /ChangeLog
 /dist
 /*.egg-info
+/ci-env*/*
+/ci-dir/*
