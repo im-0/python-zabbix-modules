@@ -9,7 +9,7 @@ foreach(MODULE_TYPE "agent" "agentd" "server")
 
     set_property(TARGET python-zabbix_${MODULE_TYPE}-modules
             APPEND_STRING PROPERTY COMPILE_FLAGS
-                " -g -O2 -std=c11 -pedantic -Wall -Wextra")
+                " -g -O2 -std=c11 -pedantic -Wall -Wextra -Wno-missing-field-initializers")
 
     set_property(TARGET python-zabbix_${MODULE_TYPE}-modules
             APPEND_STRING PROPERTY COMPILE_FLAGS
