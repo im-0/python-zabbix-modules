@@ -87,6 +87,12 @@ for version in $versions; do
     cd "../../.."
 done
 
+if [ "$( uname -s )" = "Darwin" ]; then
+    SO_EXT="dylib"
+else
+    SO_EXT="so"
+fi
+
 for version in $versions; do
-    ls -lh "./build/py${version}/zabbix-${opt_zabbix}/src"/*.so
+    ls -lh "./build/py${version}/zabbix-${opt_zabbix}/src"/*."${SO_EXT}"
 done
