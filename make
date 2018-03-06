@@ -1,7 +1,7 @@
 #!/bin/sh -eu
 
 
-DEFAULT_ZABBIX_VERSION=3.0.0
+DEFAULT_ZABBIX_VERSION=3.2.0
 
 
 printHelpAndExit()
