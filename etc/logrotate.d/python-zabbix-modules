@@ -1,4 +1,34 @@
-/var/log/python-zabbix-modules/*.log {
+/var/log/python-zabbix-modules/manager.log {
+        weekly
+        missingok
+        rotate 5
+        compress
+        delaycompress
+        copytruncate
+        su root zabbix
+}
+
+/var/log/python-zabbix-modules/zabbix_*.log {
+        weekly
+        missingok
+        rotate 5
+        compress
+        delaycompress
+        copytruncate
+        su zabbix zabbix
+}
+
+/var/log/python-zabbix-modules/module.linux.log {
+        weekly
+        missingok
+        rotate 5
+        compress
+        delaycompress
+        copytruncate
+        su zabbix zabbix
+}
+
+/var/log/python-zabbix-modules/module.test.log {
         weekly
         missingok
         rotate 5
